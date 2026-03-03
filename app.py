@@ -69,7 +69,7 @@ question_bank = {
 }
 
 # =========================
-# 3️⃣ Session State
+# 3️⃣ Session Defaults
 # =========================
 defaults = {
     "started": False,
@@ -77,7 +77,7 @@ defaults = {
     "score": 0,
     "streak": 0,
     "count": 0,
-    "current_question": None,
+    "questions_pool": [],
     "question_id": 0
 }
 
@@ -91,28 +91,38 @@ for key, value in defaults.items():
 subject = st.selectbox("เลือกวิชา", ["Math"])
 
 # =========================
-# 5️⃣ ปุ่มเริ่มใหม่
+# 5️⃣ ปุ่มเริ่มแข่งขันใหม่
 # =========================
 if st.button("เริ่มแข่งขันใหม่"):
     for key in defaults:
         st.session_state[key] = defaults[key]
 
     st.session_state.started = True
+
+    # 🔥 สุ่มชุดข้อระดับ 1 ใหม่ทั้งหมด
+    st.session_state.questions_pool = random.sample(
+        question_bank[subject][1],
+        len(question_bank[subject][1])
+    )
+
     st.session_state.question_id = random.randint(1, 100000)
+
     st.rerun()
 
 # =========================
-# 6️⃣ ระบบทำข้อสอบ
+# 6️⃣ ระบบทำข้อสอบ (ไม่ซ้ำ)
 # =========================
 if st.session_state.started and st.session_state.count < 5:
 
-    if st.session_state.current_question is None:
-        st.session_state.current_question = random.choice(
-            question_bank[subject][st.session_state.level]
+    # ถ้าเปลี่ยนระดับหรือ pool หมด → โหลดชุดใหม่ของระดับนั้น
+    if len(st.session_state.questions_pool) == 0:
+        st.session_state.questions_pool = random.sample(
+            question_bank[subject][st.session_state.level],
+            len(question_bank[subject][st.session_state.level])
         )
-        st.session_state.question_id = random.randint(1, 100000)
 
-    q = st.session_state.current_question
+    # ดึงข้อแรกออกจาก pool (pop ทำให้ไม่ซ้ำ)
+    q = st.session_state.questions_pool.pop(0)
 
     st.write(f"ข้อที่ {st.session_state.count + 1} / 5")
     st.write(q["q"])
@@ -137,13 +147,15 @@ if st.session_state.started and st.session_state.count < 5:
         if st.session_state.streak == 2:
             st.session_state.level = min(3, st.session_state.level + 1)
             st.session_state.streak = 0
+            st.session_state.questions_pool = []
 
         if st.session_state.streak == -2:
             st.session_state.level = max(1, st.session_state.level - 1)
             st.session_state.streak = 0
+            st.session_state.questions_pool = []
 
         st.session_state.count += 1
-        st.session_state.current_question = None
+        st.session_state.question_id = random.randint(1, 100000)
 
         st.rerun()
 
