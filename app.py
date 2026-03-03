@@ -5,11 +5,10 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 
 st.set_page_config(page_title="AI Learning Competition", layout="centered")
-
 st.title("🏆 AI ระบบแนะนำการเรียนแบบแข่งขัน")
 
 # =========================
-# 1️⃣ Train ML (Cache ครั้งเดียว)
+# 1️⃣ Train ML (Cache)
 # =========================
 @st.cache_resource
 def train_model():
@@ -46,7 +45,7 @@ def train_model():
 model = train_model()
 
 # =========================
-# 2️⃣ คลังข้อสอบ
+# 2️⃣ Question Bank
 # =========================
 question_bank = {
     "Math": {
@@ -78,51 +77,52 @@ defaults = {
     "streak": 0,
     "count": 0,
     "questions_pool": [],
+    "current_question": None,
     "question_id": 0
 }
 
-for key, value in defaults.items():
-    if key not in st.session_state:
-        st.session_state[key] = value
+for k, v in defaults.items():
+    if k not in st.session_state:
+        st.session_state[k] = v
 
-# =========================
-# 4️⃣ เลือกวิชา
-# =========================
 subject = st.selectbox("เลือกวิชา", ["Math"])
 
 # =========================
-# 5️⃣ ปุ่มเริ่มแข่งขันใหม่
+# 4️⃣ Start Button
 # =========================
 if st.button("เริ่มแข่งขันใหม่"):
-    for key in defaults:
-        st.session_state[key] = defaults[key]
+    for k in defaults:
+        st.session_state[k] = defaults[k]
 
     st.session_state.started = True
 
-    # 🔥 สุ่มชุดข้อระดับ 1 ใหม่ทั้งหมด
     st.session_state.questions_pool = random.sample(
         question_bank[subject][1],
         len(question_bank[subject][1])
     )
 
+    st.session_state.current_question = None
     st.session_state.question_id = random.randint(1, 100000)
 
     st.rerun()
 
 # =========================
-# 6️⃣ ระบบทำข้อสอบ (ไม่ซ้ำ)
+# 5️⃣ Quiz System (FIXED)
 # =========================
 if st.session_state.started and st.session_state.count < 5:
 
-    # ถ้าเปลี่ยนระดับหรือ pool หมด → โหลดชุดใหม่ของระดับนั้น
-    if len(st.session_state.questions_pool) == 0:
-        st.session_state.questions_pool = random.sample(
-            question_bank[subject][st.session_state.level],
-            len(question_bank[subject][st.session_state.level])
-        )
+    # 🔥 สุ่มเฉพาะตอนยังไม่มีคำถามปัจจุบัน
+    if st.session_state.current_question is None:
 
-    # ดึงข้อแรกออกจาก pool (pop ทำให้ไม่ซ้ำ)
-    q = st.session_state.questions_pool.pop(0)
+        if len(st.session_state.questions_pool) == 0:
+            st.session_state.questions_pool = random.sample(
+                question_bank[subject][st.session_state.level],
+                len(question_bank[subject][st.session_state.level])
+            )
+
+        st.session_state.current_question = st.session_state.questions_pool[0]
+
+    q = st.session_state.current_question
 
     st.write(f"ข้อที่ {st.session_state.count + 1} / 5")
     st.write(q["q"])
@@ -135,6 +135,7 @@ if st.session_state.started and st.session_state.count < 5:
 
     if st.button("ส่งคำตอบ"):
 
+        # ตรวจคำตอบ
         if choice == q["a"]:
             st.success("ถูกต้อง ✅")
             st.session_state.score += 1
@@ -143,7 +144,10 @@ if st.session_state.started and st.session_state.count < 5:
             st.error("ผิด ❌")
             st.session_state.streak -= 1
 
-        # Adaptive logic
+        # ลบข้อที่ทำแล้ว (pop ตอนนี้เท่านั้น)
+        st.session_state.questions_pool.pop(0)
+
+        # Adaptive
         if st.session_state.streak == 2:
             st.session_state.level = min(3, st.session_state.level + 1)
             st.session_state.streak = 0
@@ -155,36 +159,27 @@ if st.session_state.started and st.session_state.count < 5:
             st.session_state.questions_pool = []
 
         st.session_state.count += 1
+        st.session_state.current_question = None
         st.session_state.question_id = random.randint(1, 100000)
 
         st.rerun()
 
 # =========================
-# 7️⃣ จบรอบ → ทำนาย ML
+# 6️⃣ ML Prediction
 # =========================
 if st.session_state.count == 5:
 
     st.success(f"คะแนนรวม: {st.session_state.score}/5")
 
     score_100 = (st.session_state.score / 5) * 100
-
     input_data = [[score_100, 60, 60]]
 
     pred = model.predict(input_data)[0]
-
     level_map = {0: "Beginner", 1: "Intermediate", 2: "Advanced"}
-    predicted_level = level_map[pred]
 
-    st.subheader(f"🎯 AI ประเมินระดับคุณ: {predicted_level}")
-
-    if predicted_level == "Beginner":
-        st.write("ควรทบทวนพื้นฐานเพิ่มเติม")
-    elif predicted_level == "Intermediate":
-        st.write("ควรฝึกโจทย์ประยุกต์เพิ่ม")
-    else:
-        st.write("พร้อมทำโจทย์ขั้นสูงได้")
+    st.subheader(f"🎯 AI ประเมินระดับคุณ: {level_map[pred]}")
 
     if st.button("เริ่มใหม่อีกครั้ง"):
-        for key in defaults:
-            st.session_state[key] = defaults[key]
+        for k in defaults:
+            st.session_state[k] = defaults[k]
         st.rerun()
