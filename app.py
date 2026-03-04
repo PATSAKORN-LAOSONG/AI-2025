@@ -7,7 +7,19 @@ from sklearn.model_selection import train_test_split
 st.set_page_config(page_title="Math Skill AI", layout="centered")
 
 st.title("🧠 ระบบวิเคราะห์จุดอ่อนคณิตศาสตร์ด้วย AI")
-
+# compatibility rerun
+def safe_rerun():
+    try:
+        st.experimental_rerun()
+        return
+    except Exception:
+        pass
+    try:
+        st.script_request_rerun()
+        return
+    except Exception:
+        pass
+    st.stop()
 # =========================
 # โหลด Dataset และ Train ML
 # =========================
