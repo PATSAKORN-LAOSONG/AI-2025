@@ -143,37 +143,62 @@ if st.button("ส่งคำตอบ"):
         st.write(f"✖ การคูณ: {mul_score}")
         st.write(f"➗ การหาร: {div_score}")
  
-        # ถ้าได้เต็มทุกหมวด
-        if add_score == 100 and sub_score == 100 and mul_score == 100 and div_score == 100:
-            st.success("🎉 คุณพร้อมเรียนบทต่อไปแล้ว!")
-        else:
-            # ส่งเข้า ML
-            prediction = model.predict([[add_score, sub_score, mul_score, div_score]])
-            result = prediction[0]
- 
-            st.subheader("🤖 ผลการวิเคราะห์จาก AI")
-            st.info(f"จุดที่ควรพัฒนา: {result}")
- 
-            # แนะนำคลิป
-            if result == "weak_add":
-                st.write("แนะนำฝึกการบวกเพิ่มเติม:")
-                st.video("https://www.youtube.com/watch?v=c5eS7nRsE_Q")
- 
-            elif result == "weak_sub":
-                st.write("แนะนำฝึกการลบเพิ่มเติม:")
-                st.video("https://www.youtube.com/watch?v=vT_VBLlvdn8")
- 
-            elif result == "weak_mul":
-                st.write("แนะนำฝึกการคูณเพิ่มเติม:")
-                st.video("https://www.youtube.com/watch?v=73obrcsERe8")
- 
-            elif result == "weak_div":
-                st.write("แนะนำฝึกการหารเพิ่มเติม:")
-                st.video("https://www.youtube.com/watch?v=9D1JW8rYqeA")
- 
-            elif result == "strong_all":
-                st.success("คุณมีพื้นฐานแข็งแรงทุกด้าน 👍")
- 
+            # ถ้าได้เต็มทุกหมวด
+    if add_score == 100 and sub_score == 100 and mul_score == 100 and div_score == 100:
+        st.success("🎉 คุณพร้อมเรียนบทต่อไปแล้ว!")
+    else:
+        # ส่งเข้า ML
+        prediction = model.predict([[add_score, sub_score, mul_score, div_score]])
+        result = prediction[0]
+
+        st.subheader("🤖 ผลการวิเคราะห์จาก AI (model prediction)")
+        st.info(f"โมเดลทำนายจุดที่ควรพัฒนา: {result}")
+
+        # --- NEW: วิเคราะห์จากคะแนนจริง (show all weakest categories if tie) ---
+        skill_scores = {
+            "add": add_score,
+            "sub": sub_score,
+            "mul": mul_score,
+            "div": div_score
+        }
+
+        # หา min score แล้วหาทุกหมวดที่เท่ากับค่านั้น (tie-aware)
+        min_score = min(skill_scores.values())
+        weakest = [k for k, v in skill_scores.items() if v == min_score]
+
+        # friendly names + video links map
+        friendly = {
+            "add": ("การบวก", "https://www.youtube.com/watch?v=c5eS7nRsE_Q"),
+            "sub": ("การลบ", "https://www.youtube.com/watch?v=vT_VBLlvdn8"),
+            "mul": ("การคูณ", "https://www.youtube.com/watch?v=73obrcsERe8"),
+            "div": ("การหาร", "https://www.youtube.com/watch?v=9D1JW8rYqeA")
+        }
+
+        st.subheader("🔎 วิเคราะห์จากคะแนนจริง (tie-aware)")
+        st.write(f"คะแนนต่ำสุดคือ {min_score} — หัวข้อที่คะแนนต่ำสุด (จุดอ่อน):")
+
+        for w in weakest:
+            name, vid = friendly[w]
+            st.write(f"- {name} (คะแนน {skill_scores[w]} / 100)")
+            st.write(f"  → คำแนะนำ: ฝึก{ name } เพิ่มเติม")
+            st.video(vid)
+
+        # ในกรณีที่โมเดลทำนายหมวดอื่นด้วย ให้แสดงด้วย (complementary)
+        if result not in [f"weak_{w[:3]}" for w in weakest] and result != "strong_all":
+            st.write("")  # spacer
+            st.write("หมายเหตุ: โมเดลยังชี้ไปที่:", result)
+            # แสดงคลิปของโมเดลที่แนะนำด้วย (ถ้ามี)
+            # map model label to skill key
+            model_map = {
+                "weak_add": "add",
+                "weak_sub": "sub",
+                "weak_mul": "mul",
+                "weak_div": "div"
+            }
+            if result in model_map:
+                mm = model_map[result]
+                st.write(f"โมเดลแนะนำให้ฝึก {friendly[mm][0]} ด้วย (เสริม)")
+                st.video(friendly[mm][1])
 # =========================
 # ปุ่มเริ่มใหม่
 # =========================
