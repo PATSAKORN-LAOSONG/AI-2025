@@ -54,11 +54,16 @@ def generate_question(operation):
         a = b * correct
         question = f"{a} ÷ {b} = ?"
  
-    choices = [correct,
-               correct + random.randint(1, 5),
-               correct - random.randint(1, 5),
-               correct + random.randint(6, 10)]
- 
+    # สร้างตัวเลือกโดยหลีกเลี่ยงซ้ำกัน และไม่ให้ค่าซ้ำกับ correct เยอะ
+    choices = set()
+    choices.add(correct)
+    while len(choices) < 4:
+        delta = random.choice([1,2,3,4,5,6,7,8,9])
+        sign = random.choice([1, -1])
+        cand = correct + sign * delta
+        if cand >= 0:
+            choices.add(cand)
+    choices = list(choices)
     random.shuffle(choices)
  
     return question, correct, choices
@@ -81,76 +86,108 @@ if "questions" not in st.session_state:
         })
  
 # =========================
-# แสดงข้อสอบ
+# แสดงข้อสอบ (ไม่มีตัวเลือกติ๊กไว้ตอนเริ่ม)
 # =========================
 scores = {"add":0, "sub":0, "mul":0, "div":0}
  
 st.subheader("📘 ทำแบบทดสอบ 12 ข้อ")
- 
-user_answers = []
- 
+st.caption("โปรดตอบทุกข้อ แล้วกดปุ่ม 'ส่งคำตอบ'")
+
+# placeholder option (ใช้เป็นค่าเริ่มต้นที่ไม่ใช่คำตอบจริง)
+PLACEHOLDER = "-- เลือกคำตอบ --"
+
+# เก็บคำตอบของผู้ใช้ (ถ้ายังไม่มี ให้สร้างเป็น list ของ PLACEHOLDER)
+if "user_answers" not in st.session_state:
+    st.session_state.user_answers = [PLACEHOLDER] * len(st.session_state.questions)
+
+# แสดงทีละข้อหรือทั้งหมด (คุณขอแสดงทั้งหมดก่อน — รักษาโครงเดิม)
 for i, q in enumerate(st.session_state.questions):
-    user_choice = st.radio(
+    # สร้าง choices_with_placeholder แสดง placeholder เป็นตัวเลือกแรก
+    choices_with_placeholder = [PLACEHOLDER] + [str(c) for c in q["choices"]]
+    # เมื่อเลือกค่า ให้เก็บลง session_state.user_answers
+    selected = st.radio(
         f"ข้อ {i+1}: {q['question']}",
-        q["choices"],
+        choices_with_placeholder,
         key=f"q{i}"
     )
-    user_answers.append(user_choice)
- 
+    st.session_state.user_answers[i] = selected
+
 # =========================
 # ตรวจคำตอบ
 # =========================
 if st.button("ส่งคำตอบ"):
-    for i, q in enumerate(st.session_state.questions):
-        if user_answers[i] == q["answer"]:
-            scores[q["operation"]] += 1
- 
-    # Normalize 0–100
-    add_score = round((scores["add"]/3)*100,2)
-    sub_score = round((scores["sub"]/3)*100,2)
-    mul_score = round((scores["mul"]/3)*100,2)
-    div_score = round((scores["div"]/3)*100,2)
- 
-    st.subheader("📊 ผลคะแนน")
-    st.write(f"➕ การบวก: {add_score}")
-    st.write(f"➖ การลบ: {sub_score}")
-    st.write(f"✖ การคูณ: {mul_score}")
-    st.write(f"➗ การหาร: {div_score}")
- 
-    # ถ้าได้เต็มทุกหมวด
-    if add_score == 100 and sub_score == 100 and mul_score == 100 and div_score == 100:
-        st.success("🎉 คุณพร้อมเรียนบทต่อไปแล้ว!")
+    # ตรวจว่าผู้ใช้ตอบครบทุกข้อ (ไม่มี placeholder)
+    if any(ans == PLACEHOLDER for ans in st.session_state.user_answers):
+        st.warning("กรุณาตอบให้ครบทุกข้อก่อนส่ง (ยังมีข้อที่ไม่ได้เลือกคำตอบ).")
     else:
-        # ส่งเข้า ML
-        prediction = model.predict([[add_score, sub_score, mul_score, div_score]])
-        result = prediction[0]
+        # นับคะแนน (q['answer'] เป็น int แต่ user_answers เก็บเป็น str -> แปลงเทียบ)
+        for i, q in enumerate(st.session_state.questions):
+            user_val = st.session_state.user_answers[i]
+            try:
+                # convert user selection to int (choices ถูกสร้างเป็นตัวเลข)
+                user_val_num = int(user_val)
+            except:
+                user_val_num = None
+            if user_val_num == q["answer"]:
+                scores[q["operation"]] += 1
  
-        st.subheader("🤖 ผลการวิเคราะห์จาก AI")
-        st.info(f"จุดที่ควรพัฒนา: {result}")
+        # Normalize 0–100
+        add_score = round((scores["add"]/3)*100,2)
+        sub_score = round((scores["sub"]/3)*100,2)
+        mul_score = round((scores["mul"]/3)*100,2)
+        div_score = round((scores["div"]/3)*100,2)
  
-        # แนะนำคลิป
-        if result == "weak_add":
-            st.write("แนะนำฝึกการบวกเพิ่มเติม:")
-            st.video("https://www.youtube.com/watch?v=c5eS7nRsE_Q")
+        st.subheader("📊 ผลคะแนน")
+        st.write(f"➕ การบวก: {add_score}")
+        st.write(f"➖ การลบ: {sub_score}")
+        st.write(f"✖ การคูณ: {mul_score}")
+        st.write(f"➗ การหาร: {div_score}")
  
-        elif result == "weak_sub":
-            st.write("แนะนำฝึกการลบเพิ่มเติม:")
-            st.video("https://www.youtube.com/watch?v=vT_VBLlvdn8")
+        # ถ้าได้เต็มทุกหมวด
+        if add_score == 100 and sub_score == 100 and mul_score == 100 and div_score == 100:
+            st.success("🎉 คุณพร้อมเรียนบทต่อไปแล้ว!")
+        else:
+            # ส่งเข้า ML
+            prediction = model.predict([[add_score, sub_score, mul_score, div_score]])
+            result = prediction[0]
  
-        elif result == "weak_mul":
-            st.write("แนะนำฝึกการคูณเพิ่มเติม:")
-            st.video("https://www.youtube.com/watch?v=73obrcsERe8")
+            st.subheader("🤖 ผลการวิเคราะห์จาก AI")
+            st.info(f"จุดที่ควรพัฒนา: {result}")
  
-        elif result == "weak_div":
-            st.write("แนะนำฝึกการหารเพิ่มเติม:")
-            st.video("https://www.youtube.com/watch?v=9D1JW8rYqeA")
+            # แนะนำคลิป
+            if result == "weak_add":
+                st.write("แนะนำฝึกการบวกเพิ่มเติม:")
+                st.video("https://www.youtube.com/watch?v=c5eS7nRsE_Q")
  
-        elif result == "strong_all":
-            st.success("คุณมีพื้นฐานแข็งแรงทุกด้าน 👍")
+            elif result == "weak_sub":
+                st.write("แนะนำฝึกการลบเพิ่มเติม:")
+                st.video("https://www.youtube.com/watch?v=vT_VBLlvdn8")
+ 
+            elif result == "weak_mul":
+                st.write("แนะนำฝึกการคูณเพิ่มเติม:")
+                st.video("https://www.youtube.com/watch?v=73obrcsERe8")
+ 
+            elif result == "weak_div":
+                st.write("แนะนำฝึกการหารเพิ่มเติม:")
+                st.video("https://www.youtube.com/watch?v=9D1JW8rYqeA")
+ 
+            elif result == "strong_all":
+                st.success("คุณมีพื้นฐานแข็งแรงทุกด้าน 👍")
  
 # =========================
 # ปุ่มเริ่มใหม่
 # =========================
 if st.button("🔄 เริ่มใหม่"):
-    st.session_state.clear()
-    st.rerun()
+    # เคลียร์ session keys ที่เราใช้
+    keys_to_clear = ["questions", "user_answers"]
+    for k in keys_to_clear:
+        if k in st.session_state:
+            del st.session_state[k]
+    # รีโหลดหน้า (ใช้ที่มีในเวอร์ชัน Streamlit ของคุณ)
+    try:
+        st.experimental_rerun()
+    except Exception:
+        try:
+            st.script_request_rerun()
+        except Exception:
+            st.stop()
